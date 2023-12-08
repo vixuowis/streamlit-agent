@@ -36,7 +36,6 @@ st.set_page_config(
 # Tools setup
 llm = AzureChatOpenAI(
     openai_api_version="2023-05-15",
-    openai_api_key="2864ce19a46540b2a0943df607ca6225",
     openai_api_base="https://autoagents-ca-east.openai.azure.com/",
     deployment_name="gpt-4",
     streaming=True,
