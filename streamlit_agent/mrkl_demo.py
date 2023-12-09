@@ -1,73 +1,81 @@
-import os
-
-from pathlib import Path
-
+from langchain.agents import ConversationalChatAgent, AgentExecutor
+from langchain.callbacks import StreamlitCallbackHandler
+from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import AzureChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
+from langchain.tools import DuckDuckGoSearchRun
 import streamlit as st
 
-from langchain import SQLDatabase
-from langchain.agents import AgentType
-from langchain.agents import initialize_agent, Tool, load_tools
-from langchain.callbacks import StreamlitCallbackHandler
+from langchain.agents import AgentType, initialize_agent, Tool
 from langchain.chains import LLMMathChain
 
-# from langchain.llms import OpenAI
-from langchain.chat_models import AzureChatOpenAI
-from langchain.utilities import DuckDuckGoSearchAPIWrapper
-from langchain_experimental.sql import SQLDatabaseChain
 
-from streamlit_agent.callbacks.capturing_callback_handler import playback_callbacks
-from streamlit_agent.clear_results import with_clear_container
-
-DB_PATH = (Path(__file__).parent / "Chinook.db").absolute()
-
-SAVED_SESSIONS = {
-    "Who is Leo DiCaprio's girlfriend? What is her current age raised to the 0.43 power?": "leo.pickle",
-    "What is the full name of the artist who recently released an album called "
-    "'The Storm Before the Calm' and are they in the FooBar database? If so, what albums of theirs "
-    "are in the FooBar database?": "alanis.pickle",
-}
-
+# title
 st.set_page_config(
-    page_title="有梗 AI", page_icon="🦜", layout="wide", initial_sidebar_state="collapsed"
+    page_title="一个有梗的电商", page_icon="🤣", layout="wide", initial_sidebar_state="collapsed"
 )
 
-"# 🦜🔗 有梗 AI"
+st.title("🤣 有梗 AI - 一个有梗的电商")
 
-# Tools setup
+# llm
 llm = AzureChatOpenAI(
-    openai_api_version="2023-05-15",
+    openai_api_version="2023-12-01-preview",
     openai_api_base="https://autoagents-ca-east.openai.azure.com/",
     deployment_name="gpt-4",
     streaming=True,
 )
 
-# Initialize agent
+# memory
+msgs = StreamlitChatMessageHistory()
+memory = ConversationBufferMemory(
+    chat_memory=msgs, return_messages=True, memory_key="chat_history", output_key="output"
+)
+
+# agent
 llm_math_chain = LLMMathChain(llm=llm)
 tools = [
     Tool(
         name="Calculator",
         func=llm_math_chain.run,
         description="useful for when you need to answer questions about math",
-        return_direct=True,
     )
 ]
+chat_agent = ConversationalChatAgent.from_llm_and_tools(llm=llm, tools=tools)
 
-agent = initialize_agent(tools, llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True)
+# reset
+if len(msgs.messages) == 0 or st.sidebar.button("Reset chat history"):
+    msgs.clear()
+    msgs.add_ai_message("恁想弄点啥？")
+    st.session_state.steps = {}
 
-with st.form(key="form"):
-    user_input = st.text_input("您想要点啥啊？")
-    submit_clicked = st.form_submit_button("开始找点乐子！")
+# history
+avatars = {"human": "user", "ai": "assistant"}
+for idx, msg in enumerate(msgs.messages):
+    with st.chat_message(avatars[msg.type]):
+        # Render intermediate steps if any were saved
+        for step in st.session_state.steps.get(str(idx), []):
+            if step[0].tool == "_Exception":
+                continue
+            with st.status(f"**{step[0].tool}**: {step[0].tool_input}", state="complete"):
+                st.write(step[0].log)
+                st.write(step[1])
+        st.write(msg.content)
 
-output_container = st.empty()
-if with_clear_container(submit_clicked):
-    output_container = output_container.container()
-    output_container.chat_message("user").write(user_input)
+# chat
+if prompt := st.chat_input(placeholder="T 恤, 水杯, 帆布袋"):
+    st.chat_message("user").write(prompt)
 
-    answer_container = output_container.chat_message("有梗 AI", avatar="🦜")
-    st_callback = StreamlitCallbackHandler(answer_container)
+    executor = AgentExecutor.from_agent_and_tools(
+        agent=chat_agent,
+        tools=tools,
+        memory=memory,
+        return_intermediate_steps=True,
+        handle_parsing_errors=True,
+    )
 
-    # If we've saved this question, play it back instead of actually running LangChain
-    # (so that we don't exhaust our API calls unnecessarily)
-    answer = agent.run(user_input, callbacks=[st_callback])
-
-    answer_container.write(answer)
+    with st.chat_message("assistant"):
+        st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
+        response = executor(prompt, callbacks=[st_cb])
+        st.write(response["output"])
+        st.session_state.steps[str(len(msgs.messages) - 1)] = response["intermediate_steps"]
