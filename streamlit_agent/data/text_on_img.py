@@ -14,6 +14,11 @@ current_directory = os.path.dirname(current_file_path)
 # 切换到当前文件所在的目录
 os.chdir(current_directory)
 
+try:
+    os.mkdir("items")
+except:
+    pass
+
 
 def text_on_img(logo_text):
     import os
