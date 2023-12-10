@@ -1,15 +1,15 @@
 from langchain.agents import ConversationalChatAgent, AgentExecutor
 from langchain.callbacks import StreamlitCallbackHandler
-from langchain.chat_models import ChatOpenAI
-from langchain.chat_models import AzureChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.memory.chat_message_histories import StreamlitChatMessageHistory
-from langchain.tools import DuckDuckGoSearchRun
 import streamlit as st
 
-from langchain.agents import AgentType, initialize_agent, Tool
+from langchain.agents import Tool
 from langchain.chains import LLMMathChain
+from streamlit_agent.chains.memes import get_memes_chain
+from streamlit_agent.chains.products import get_product_t2i
 
+from streamlit_agent.models.gpt import get_llm
 
 # title
 st.set_page_config(
@@ -19,12 +19,7 @@ st.set_page_config(
 st.title("🤣 有梗 AI - 一个有梗的电商")
 
 # llm
-llm = AzureChatOpenAI(
-    openai_api_version="2023-12-01-preview",
-    openai_api_base="https://autoagents-ca-east.openai.azure.com/",
-    deployment_name="gpt-4",
-    streaming=True,
-)
+llm = get_llm()
 
 # memory
 msgs = StreamlitChatMessageHistory()
@@ -33,13 +28,15 @@ memory = ConversationBufferMemory(
 )
 
 # agent
-llm_math_chain = LLMMathChain(llm=llm)
+llm_math_chain = LLMMathChain.from_llm(llm)
 tools = [
+    get_memes_chain,
+    get_product_t2i,
     Tool(
         name="Calculator",
         func=llm_math_chain.run,
         description="useful for when you need to answer questions about math",
-    )
+    ),
 ]
 chat_agent = ConversationalChatAgent.from_llm_and_tools(llm=llm, tools=tools)
 
@@ -50,7 +47,7 @@ if len(msgs.messages) == 0 or st.sidebar.button("Reset chat history"):
     st.session_state.steps = {}
 
 # history
-avatars = {"human": "user", "ai": "assistant"}
+avatars = {"human": "user", "ai": "🤣"}
 for idx, msg in enumerate(msgs.messages):
     with st.chat_message(avatars[msg.type]):
         # Render intermediate steps if any were saved
@@ -74,8 +71,8 @@ if prompt := st.chat_input(placeholder="T 恤, 水杯, 帆布袋"):
         handle_parsing_errors=True,
     )
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🤣"):
         st_cb = StreamlitCallbackHandler(st.container(), expand_new_thoughts=False)
         response = executor(prompt, callbacks=[st_cb])
-        st.write(response["output"])
+        st.markdown(response["output"])
         st.session_state.steps[str(len(msgs.messages) - 1)] = response["intermediate_steps"]

@@ -38,7 +38,6 @@ tools = [
 agent = initialize_agent(tools, llm, agent=AgentType.OPENAI_MULTI_FUNCTIONS, verbose=True)
 
 # conversation
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 

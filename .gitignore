@@ -167,3 +167,22 @@ docs/docs_skeleton/node_modules
 docs/docs_skeleton/yarn.lock
 
 secrets.toml
+
+!**/glob-import/dir/node_modules
+.DS_Store
+.idea
+*.cpuprofile
+*.local
+*.log
+/.vscode/
+/docs/.vitepress/cache
+dist
+dist-ssr
+explorations
+node_modules
+playground-temp
+temp
+TODOs.md
+.eslintcache
+
+items/
